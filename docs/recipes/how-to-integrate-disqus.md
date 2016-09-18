@@ -6,7 +6,6 @@ https://disqus.com/admin/create/
 
 ```js
 import React, { PropTypes } from 'react';
-import { canUseDOM } from 'fbjs/lib/ExecutionEnvironment';
 
 const SHORTNAME = 'example';
 const WEBSITE_URL = 'http://www.example.com';
@@ -47,13 +46,11 @@ class DisqusThread {
   render() {
     let { id, title, path, ...other} = this.props;
 
-    if (canUseDOM) {
-      /* eslint-disable camelcase */
+    if (process.env.BROWSER) {
       window.disqus_shortname = SHORTNAME;
       window.disqus_identifier = id;
       window.disqus_title = title;
       window.disqus_url = WEBSITE_URL + path;
-      /* eslint-enable camelcase */
     }
 
     return <div {...other} id="disqus_thread" />;

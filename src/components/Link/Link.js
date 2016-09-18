@@ -8,7 +8,7 @@
  */
 
 import React, { Component, PropTypes } from 'react';
-import Location from '../../core/Location';
+import history from '../../core/history';
 
 function isLeftClickEvent(event) {
   return event.button === 0;
@@ -22,40 +22,42 @@ class Link extends Component {
 
   static propTypes = {
     to: PropTypes.oneOfType([PropTypes.string, PropTypes.object]).isRequired,
+    children: PropTypes.node,
     onClick: PropTypes.func,
   };
 
   handleClick = (event) => {
     let allowTransition = true;
-    let clickResult;
 
-    if (this.props && this.props.onClick) {
-      clickResult = this.props.onClick(event);
+    if (this.props.onClick) {
+      this.props.onClick(event);
     }
 
     if (isModifiedEvent(event) || !isLeftClickEvent(event)) {
       return;
     }
 
-    if (clickResult === false || event.defaultPrevented === true) {
+    if (event.defaultPrevented === true) {
       allowTransition = false;
     }
 
     event.preventDefault();
 
     if (allowTransition) {
-      const link = event.currentTarget;
-      if (this.props && this.props.to) {
-        Location.push(this.props.to);
+      if (this.props.to) {
+        history.push(this.props.to);
       } else {
-        Location.push({ pathname: link.pathname, search: link.search });
+        history.push({
+          pathname: event.currentTarget.pathname,
+          search: event.currentTarget.search,
+        });
       }
     }
   };
 
   render() {
-    const { to, ...props } = this.props; // eslint-disable-line no-use-before-define
-    return <a href={Location.createHref(to)} {...props} onClick={this.handleClick} />;
+    const { to, children, ...props } = this.props;
+    return <a href={history.createHref(to)} {...props} onClick={this.handleClick}>{children}</a>;
   }
 
 }

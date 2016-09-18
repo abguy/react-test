@@ -21,7 +21,7 @@
 * Add `package.json` file into each component's folder.<br>
   This will allow to easily reference such components from other places in
   your code.<br>
-  `import Nav from '../Nav'` vs `import Nav from '../Nav/Nav.js'`
+  Use `import Nav from '../Navigation'` instead of `import Nav from '../Navigation/Navigation.js'`
 
 ```
 /components/Navigation/icon.svg
@@ -52,14 +52,14 @@ For more information google for [component-based UI development](https://google.
 class Navigation extends Component {
   static propTypes = { items: PropTypes.array.isRequired };
   render() {
-    return <nav><ul>{this.props.items.map(x => <li>{x.text}</li>}</ul></nav>;
+    return <nav><ul>{this.props.items.map(x => <li>{x.text}</li>)}</ul></nav>;
   }
 }
 
 // Better
 function Navigation({ items }) {
   return (
-    <nav><ul>{items.map(x => <li>{x.text}</li>}</ul></nav>;
+    <nav><ul>{items.map(x => <li>{x.text}</li>)}</ul></nav>;
   );
 }
 Navigation.propTypes = { items: PropTypes.array.isRequired };

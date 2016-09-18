@@ -10,104 +10,168 @@
 import 'babel-polyfill';
 import ReactDOM from 'react-dom';
 import FastClick from 'fastclick';
-import Router from './routes';
-import Location from './core/Location';
-import { addEventListener, removeEventListener } from './core/DOMUtils';
+import UniversalRouter from 'universal-router';
+import { readState, saveState } from 'history/lib/DOMStateStorage';
+import history from './core/history';
+import {
+  addEventListener,
+  removeEventListener,
+  windowScrollX,
+  windowScrollY,
+} from './core/DOMUtils';
 
-let cssContainer = document.getElementById('css');
-const appContainer = document.getElementById('app');
 const context = {
-  insertCss: styles => styles._insertCss(),
-  onSetTitle: value => (document.title = value),
-  onSetMeta: (name, content) => {
-    // Remove and create a new <meta /> tag in order to make it work
-    // with bookmarks in Safari
-    const elements = document.getElementsByTagName('meta');
-    Array.from(elements).forEach((element) => {
-      if (element.getAttribute('name') === name) {
-        element.parentNode.removeChild(element);
-      }
-    });
-    const meta = document.createElement('meta');
-    meta.setAttribute('name', name);
-    meta.setAttribute('content', content);
-    document
-      .getElementsByTagName('head')[0]
-      .appendChild(meta);
+  insertCss: (...styles) => {
+    const removeCss = styles.map(style => style._insertCss()); // eslint-disable-line no-underscore-dangle, max-len
+    return () => {
+      removeCss.forEach(f => f());
+    };
   },
 };
 
-// Google Analytics tracking. Don't send 'pageview' event after the first
-// rendering, as it was already sent by the Html component.
-let trackPageview = () => (trackPageview = () => window.ga('send', 'pageview'));
+function updateTag(tag, nameKey, valueKey, name, value) {
+  // Remove and create a new <meta /> tag in order to make it work with bookmarks in Safari
+  let meta = document.head.querySelector(`${tag}[${nameKey}=${name}]`);
+  if (!meta || meta.getAttribute(valueKey) !== value) {
+    if (meta) {
+      meta.parentNode.removeChild(meta);
+    }
+    if (typeof value === 'string') {
+      meta = document.createElement(tag);
+      meta.setAttribute(nameKey, name);
+      meta.setAttribute(valueKey, value);
+      document.head.appendChild(meta);
+    }
+  }
+}
+function updateMeta(name, value) {
+  updateTag('meta', 'name', 'content', name, value);
+}
+function updateLink(name, value) { // eslint-disable-line no-unused-vars
+  updateTag('link', 'rel', 'href', name, value);
+}
+function updateCustomMeta(name, value) { // eslint-disable-line no-unused-vars
+  updateTag('meta', 'property', 'content', name, value);
+}
 
-function render(state) {
-  Router.dispatch(state, (newState, component) => {
-    ReactDOM.render(component, appContainer, () => {
-      // Restore the scroll position if it was saved into the state
-      if (state.scrollY !== undefined) {
-        window.scrollTo(state.scrollX, state.scrollY);
-      } else {
-        window.scrollTo(0, 0);
-      }
+// Restore the scroll position if it was saved into the state
+function restoreScrollPosition({ state, hash }) {
+  if (state && state.scrollY !== undefined) {
+    window.scrollTo(state.scrollX, state.scrollY);
+    return;
+  }
 
-      trackPageview();
+  const targetHash = hash && hash.substr(1);
+  if (targetHash) {
+    const target = document.getElementById(targetHash);
+    if (target) {
+      window.scrollTo(0, windowScrollY() + target.getBoundingClientRect().top);
+      return;
+    }
+  }
 
-      // Remove the pre-rendered CSS because it's no longer used
-      // after the React app is launched
-      if (cssContainer) {
-        cssContainer.parentNode.removeChild(cssContainer);
-        cssContainer = null;
-      }
-    });
+  window.scrollTo(0, 0);
+}
+
+let onRenderComplete = function initialRenderComplete() {
+  const elem = document.getElementById('css');
+  if (elem) elem.parentNode.removeChild(elem);
+  onRenderComplete = function renderComplete(route, location) {
+    document.title = route.title;
+
+    updateMeta('description', route.description);
+    // Update necessary custom tags at runtime here, ie:
+    // updateMeta('keywords', route.keywords);
+    // updateLink('canonical', route.canonicalUrl);
+    // updateCustomMeta('og:url', route.canonicalUrl);
+    // updateCustomMeta('og:image', route.imageUrl);
+    // etc.
+
+    restoreScrollPosition(location);
+
+    // Google Analytics tracking. Don't send 'pageview' event after
+    // the initial rendering, as it was already sent
+    if (window.ga) {
+      window.ga('send', 'pageview', location.pathname + location.search);
+    }
+  };
+};
+
+const container = document.getElementById('app');
+function render(route, location) {
+  return new Promise((resolve, reject) => {
+    try {
+      ReactDOM.render(
+        route.component,
+        container,
+        onRenderComplete.bind(undefined, route, location)
+      );
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
-function run() {
-  let currentLocation = null;
-  let currentState = null;
+// Make taps on links and buttons work fast on mobiles
+FastClick.attach(document.body);
 
-  // Make taps on links and buttons work fast on mobiles
-  FastClick.attach(document.body);
+let currentLocation = history.getCurrentLocation();
+let routes = require('./routes').default;
 
-  // Re-render the app when window.location changes
-  const unlisten = Location.listen(location => {
-    currentLocation = location;
-    currentState = Object.assign({}, location.state, {
+// Re-render the app when window.location changes
+async function onLocationChange(location) {
+  // Save the page scroll position into the current location's state
+  if (currentLocation.key) {
+    saveState(currentLocation.key, {
+      ...readState(currentLocation.key),
+      scrollX: windowScrollX(),
+      scrollY: windowScrollY(),
+    });
+  }
+  currentLocation = location;
+
+  try {
+    const route = await UniversalRouter.resolve(routes, {
       path: location.pathname,
       query: location.query,
       state: location.state,
       context,
     });
-    render(currentState);
-  });
 
-  // Save the page scroll position into the current location's state
-  const supportPageOffset = window.pageXOffset !== undefined;
-  const isCSS1Compat = ((document.compatMode || '') === 'CSS1Compat');
-  const setPageOffset = () => {
-    currentLocation.state = currentLocation.state || Object.create(null);
-    if (supportPageOffset) {
-      currentLocation.state.scrollX = window.pageXOffset;
-      currentLocation.state.scrollY = window.pageYOffset;
-    } else {
-      currentLocation.state.scrollX = isCSS1Compat ?
-        document.documentElement.scrollLeft : document.body.scrollLeft;
-      currentLocation.state.scrollY = isCSS1Compat ?
-        document.documentElement.scrollTop : document.body.scrollTop;
-    }
-  };
-
-  addEventListener(window, 'scroll', setPageOffset);
-  addEventListener(window, 'pagehide', () => {
-    removeEventListener(window, 'scroll', setPageOffset);
-    unlisten();
-  });
+    await render(route, location);
+  } catch (err) {
+    // TODO: Inform the user about the failed page transition.
+    console.error(err); // eslint-disable-line no-console
+  }
 }
 
-// Run the application when both DOM is ready and page content is loaded
-if (['complete', 'loaded', 'interactive'].includes(document.readyState) && document.body) {
-  run();
-} else {
-  document.addEventListener('DOMContentLoaded', run, false);
+// Add History API listener and trigger initial change
+const removeHistoryListener = history.listen(onLocationChange);
+history.replace(currentLocation);
+
+// Switch off the native scroll restoration behavior and handle it manually
+// https://developers.google.com/web/updates/2015/09/history-api-scroll-restoration
+let originalScrollRestoration;
+if (window.history && 'scrollRestoration' in window.history) {
+  originalScrollRestoration = window.history.scrollRestoration;
+  window.history.scrollRestoration = 'manual';
+}
+
+// Prevent listeners collisions during history navigation
+addEventListener(window, 'pagehide', function onPageHide() {
+  removeEventListener(window, 'pagehide', onPageHide);
+  removeHistoryListener();
+  if (originalScrollRestoration) {
+    window.history.scrollRestoration = originalScrollRestoration;
+    originalScrollRestoration = undefined;
+  }
+});
+
+// Enable Hot Module Replacement (HMR)
+if (module.hot) {
+  module.hot.accept('./routes', () => {
+    routes = require('./routes').default; // eslint-disable-line global-require
+
+    onLocationChange(history.getCurrentLocation());
+  });
 }
