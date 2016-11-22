@@ -7,50 +7,35 @@
  * LICENSE.txt file in the root directory of this source tree.
  */
 
-import React from 'react';
-import App from '../components/App';
+/* eslint-disable global-require */
 
-// Child routes
-import home from './home';
-import contact from './contact';
-import login from './login';
-import register from './register';
-import content from './content';
-import notFound from './notFound';
-
+// The top-level (parent) route
 export default {
 
   path: '/',
 
-  // keep in mind, routes are evaluated in order
+  // Keep in mind, routes are evaluated in order
   children: [
-    home,
-    contact,
-    login,
-    register,
+    require('./home').default,
+    require('./contact').default,
+    require('./login').default,
+    require('./register').default,
+    require('./admin').default,
 
-    // place new routes before...
-    content,
-    notFound,
+    // Wildcard routes, e.g. { path: '*', ... } (must go last)
+    require('./content').default,
+    require('./notFound').default,
   ],
 
-  async action({ next, context }) {
-    let route;
-
+  async action({ next }) {
     // Execute each child route until one of them return the result
-    // TODO: move this logic to the `next` function
-    do {
-      route = await next();
-    } while (!route);
+    const route = await next();
 
-    return {
-      ...route,
+    // Provide default values for title, description etc.
+    route.title = `${route.title || 'Untitled Page'} - www.reactstarterkit.com`;
+    route.description = route.description || '';
 
-      // Override the result of child route with extensions
-      title: `${route.title || 'Untitled Page'} - www.reactstarterkit.com`,
-      description: route.description || '',
-      component: <App context={context}>{route.component}</App>,
-    };
+    return route;
   },
 
 };

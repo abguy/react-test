@@ -9,18 +9,27 @@
 
 import React from 'react';
 import Layout from '../../components/Layout';
-import Contact from './Contact';
 
-const title = 'Contact Us';
+const title = 'Admin Page';
+const isAdmin = false;
 
 export default {
 
-  path: '/contact',
+  path: '/admin',
 
-  action() {
+  async action() {
+    if (!isAdmin) {
+      return { redirect: '/login' };
+    }
+
+    const Admin = await new Promise((resolve) => {
+      require.ensure([], (require) => resolve(require('./Admin').default), 'admin');
+    });
+
     return {
       title,
-      component: <Layout><Contact title={title} /></Layout>,
+      chunk: 'admin',
+      component: <Layout><Admin title={title} /></Layout>,
     };
   },
 

@@ -9,26 +9,23 @@
 
 import React, { PropTypes } from 'react';
 import withStyles from 'isomorphic-style-loader/lib/withStyles';
-import s from './Content.css';
+import s from './Admin.css';
 
-class Content extends React.Component {
+class Admin extends React.Component {
   static propTypes = {
-    path: PropTypes.string.isRequired,
-    content: PropTypes.string.isRequired,
-    title: PropTypes.string,
+    title: PropTypes.string.isRequired,
   };
 
   render() {
-    const { path, title, content } = this.props;
     return (
       <div className={s.root}>
         <div className={s.container}>
-          {title && path !== '/' && <h1>{title}</h1>}
-          <div dangerouslySetInnerHTML={{ __html: content }} />
+          <h1>{this.props.title}</h1>
+          <p>...</p>
         </div>
       </div>
     );
   }
 }
 
-export default withStyles(s)(Content);
+export default withStyles(s)(Admin);

@@ -9,23 +9,26 @@
 
 import React, { PropTypes } from 'react';
 import withStyles from 'isomorphic-style-loader/lib/withStyles';
-import s from './Contact.css';
+import s from './Layout.css';
+import Header from '../Header';
+import Feedback from '../Feedback';
+import Footer from '../Footer';
 
-class Contact extends React.Component {
+class Layout extends React.Component {
   static propTypes = {
-    title: PropTypes.string.isRequired,
+    children: PropTypes.node.isRequired,
   };
 
   render() {
     return (
-      <div className={s.root}>
-        <div className={s.container}>
-          <h1>{this.props.title}</h1>
-          <p>...</p>
-        </div>
+      <div>
+        <Header />
+        {this.props.children}
+        <Feedback />
+        <Footer />
       </div>
     );
   }
 }
 
-export default withStyles(s)(Contact);
+export default withStyles(s)(Layout);
